@@ -1,1 +1,1 @@
-"# FreshRSS" 
+user.js for FreshRSS
