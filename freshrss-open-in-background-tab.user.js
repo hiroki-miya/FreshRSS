@@ -4,6 +4,7 @@
 // @version     1.0.0
 // @description Open the selected link in a new background tab
 // @author      hiroki-miya
+// @license     MIT
 // @match       https://freshrss.example.net
 // @grant       GM_openInTab
 // ==/UserScript==
@@ -11,7 +12,7 @@
 (function() {
     'use strict';
 
-    // Shortcut key setting
+    // Shortcut key setting(Default: ";")
     const shortcutKey = ';';
 
     // Function to execute when the shortcut key is pressed

@@ -1,15 +1,16 @@
 // ==UserScript==
-// @name           FreshRSS NG Filter
-// @namespace      https://github.com/hiroki-miya
-// @version        1.0.0
-// @description    Hide items that match rules. Rules are written in regular expressions
-// @author         hiroki-miya
-// @match          https://freshrss.example.net
-// @grant          GM_addStyle
-// @grant          GM_getValue
-// @grant          GM_registerMenuCommand
-// @grant          GM_setValue
-// @run-at         document-idle
+// @name        FreshRSS NG Filter
+// @namespace   https://github.com/hiroki-miya
+// @version     1.0.0
+// @description Hides articles matching the rule in FreshRSS. Rules are described by regular expressions.
+// @author      hiroki-miya
+// @license     MIT
+// @match       https://freshrss.example.net
+// @grant       GM_addStyle
+// @grant       GM_getValue
+// @grant       GM_registerMenuCommand
+// @grant       GM_setValue
+// @run-at      document-idle
 // ==/UserScript==
 
 (function() {

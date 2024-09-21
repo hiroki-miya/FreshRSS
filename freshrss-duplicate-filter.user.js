@@ -1,16 +1,17 @@
 // ==UserScript==
-// @name           FreshRSS Duplicate Filter
-// @namespace      https://github.com/hiroki-miya
-// @version        1.0.0
-// @description    Hide older articles that have both the same title and URL within a category
-// @author         hiroki-miya
-// @match          https://freshrss.example.net
-// @grant          GM_addStyle
-// @grant          GM_getValue
-// @grant          GM_registerMenuCommand
-// @grant          GM_setValue
-// @grant          GM_xmlhttpRequest
-// @run-at         document-idle
+// @name        FreshRSS Duplicate Filter
+// @namespace   https://github.com/hiroki-miya
+// @version     1.0.0
+// @description Hide older articles with the same title and URL in a category in the FreshRSS feed list.
+// @author      hiroki-miya
+// @license     MIT
+// @match       https://freshrss.example.net
+// @grant       GM_addStyle
+// @grant       GM_getValue
+// @grant       GM_registerMenuCommand
+// @grant       GM_setValue
+// @grant       GM_xmlhttpRequest
+// @run-at      document-idle
 // ==/UserScript==
 
 (function() {
@@ -152,15 +153,16 @@
             const articleData = { element: article, timestamp: new Date(timeElement.datetime).getTime() };
 
             // Duplicate check
-            if (articleMap.has(title) || articleMap.has(url)) {
-                const existingArticle = articleMap.get(title) || articleMap.get(url);
-                const older = existingArticle.timestamp <= articleData.timestamp ? existingArticle : articleData;
-
-                // Mark older articles as duplicates
-                markAsDuplicate(older.element);
+            if (articleMap.has(title)) {
+                const existingArticle = articleMap.get(title);
+                if (existingArticle.url === url) {
+                    const older = existingArticle.timestamp <= articleData.timestamp ? existingArticle : articleData;
+            
+                    // Mark older articles as duplicates
+                    markAsDuplicate(older.element);
+                }
             } else {
-                articleMap.set(title, articleData);
-                articleMap.set(url, articleData);
+                articleMap.set(title, { ...articleData, url });
             }
         });
     }
