@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name        FreshRSS Duplicate Filter
 // @namespace   https://github.com/hiroki-miya
-// @version     1.0.0
-// @description Hide older articles with the same title and URL in a category in the FreshRSS feed list.
+// @version     1.0.1
+// @description Mark as read and hide old articles with the same title and URL in the same category in the FreshRSS feed list.
 // @author      hiroki-miya
 // @license     MIT
 // @match       https://freshrss.example.net
@@ -12,6 +12,8 @@
 // @grant       GM_setValue
 // @grant       GM_xmlhttpRequest
 // @run-at      document-idle
+// @downloadURL https://update.greasyfork.org/scripts/509575/FreshRSS%20Duplicate%20Filter.user.js
+// @updateURL https://update.greasyfork.org/scripts/509575/FreshRSS%20Duplicate%20Filter.meta.js
 // ==/UserScript==
 
 (function() {
@@ -129,11 +131,11 @@
     // Register settings screen
     GM_registerMenuCommand('Settings', showSettings);
 
-    // Function to add "duplicate" class to articles
+    // Mark as read and hide articles
     function markAsDuplicate(articleElement) {
         if (!articleElement) return;
-        articleElement.classList.add('duplicate');
-        articleElement.style.display = 'none';
+        mark_read(articleElement, true, true);
+        articleElement.remove();
     }
 
     // Check for duplicate articles and mark older ones as read
@@ -157,7 +159,7 @@
                 const existingArticle = articleMap.get(title);
                 if (existingArticle.url === url) {
                     const older = existingArticle.timestamp <= articleData.timestamp ? existingArticle : articleData;
-            
+
                     // Mark older articles as duplicates
                     markAsDuplicate(older.element);
                 }

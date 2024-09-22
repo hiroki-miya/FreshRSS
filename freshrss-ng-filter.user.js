@@ -2,7 +2,7 @@
 // @name        FreshRSS NG Filter
 // @namespace   https://github.com/hiroki-miya
 // @version     1.0.0
-// @description Hides articles matching the rule in FreshRSS. Rules are described by regular expressions.
+// @description Mark as read and hide articles matching the rule in FreshRSS. Rules are described by regular expressions.
 // @author      hiroki-miya
 // @license     MIT
 // @match       https://freshrss.example.net
@@ -11,6 +11,8 @@
 // @grant       GM_registerMenuCommand
 // @grant       GM_setValue
 // @run-at      document-idle
+// @downloadURL https://update.greasyfork.org/scripts/509727/FreshRSS%20NG%20Filter.user.js
+// @updateURL https://update.greasyfork.org/scripts/509727/FreshRSS%20NG%20Filter.meta.js
 // ==/UserScript==
 
 (function() {
@@ -260,10 +262,10 @@
                 }
             }
 
-            // Add ng class to articles matching the filter
+            // Mark as read and hide articles
             if (matchesAnyFilter) {
-                article.classList.add('ng');
-                article.style.display = 'none';
+                mark_read(article, true, true);
+                article.remove();
             }
         });
     }
