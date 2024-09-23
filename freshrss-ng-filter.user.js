@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        FreshRSS NG Filter
 // @namespace   https://github.com/hiroki-miya
-// @version     1.0.0
+// @version     1.0.1
 // @description Mark as read and hide articles matching the rule in FreshRSS. Rules are described by regular expressions.
 // @author      hiroki-miya
 // @license     MIT
@@ -11,8 +11,6 @@
 // @grant       GM_registerMenuCommand
 // @grant       GM_setValue
 // @run-at      document-idle
-// @downloadURL https://update.greasyfork.org/scripts/509727/FreshRSS%20NG%20Filter.user.js
-// @updateURL https://update.greasyfork.org/scripts/509727/FreshRSS%20NG%20Filter.meta.js
 // ==/UserScript==
 
 (function() {
@@ -95,7 +93,7 @@
                 document.getElementById('filter-name').value = filterName;
                 document.getElementById('filter-title').value = filter.title;
                 document.getElementById('filter-url').value = filter.url;
-                document.getElementById('filter-summary').value = filter.summary;
+                document.getElementById('filter-content').value = filter.content;
 
                 editingFilterName = filterName;
 
@@ -130,7 +128,7 @@
             <div><label>Filter Name</label><input type="text" id="filter-name"></div>
             <div><label>Title (Regex)</label><input type="text" id="filter-title"></div>
             <div><label>URL (Regex)</label><input type="text" id="filter-url"></div>
-            <div><label>Summary (Regex)</label><input type="text" id="filter-summary"></div>
+            <div><label>Content (Regex)</label><input type="text" id="filter-content"></div>
             <br>
             </div>
             <button id="fnfs-save">Save</button>
@@ -177,7 +175,7 @@
             const filterName = document.getElementById('filter-name').value;
             const filterTitle = document.getElementById('filter-title').value;
             const filterUrl = document.getElementById('filter-url').value;
-            const filterSummary = document.getElementById('filter-summary').value;
+            const filterContent = document.getElementById('filter-content').value;
 
             if (!filterName) {
                 alert('Please enter a filter name');
@@ -188,7 +186,7 @@
             savedFilters[filterName] = {
                 title: filterTitle,
                 url: filterUrl,
-                summary: filterSummary
+                content: filterContent
             };
 
             // If the filter name was changed during editing, delete the old filter
@@ -205,7 +203,7 @@
             document.getElementById('filter-name').value = '';
             document.getElementById('filter-title').value = '';
             document.getElementById('filter-url').value = '';
-            document.getElementById('filter-summary').value = '';
+            document.getElementById('filter-content').value = '';
             editingFilterName = null;
 
             // Update filter list
@@ -221,7 +219,7 @@
             document.getElementById('filter-name').value = '';
             document.getElementById('filter-title').value = '';
             document.getElementById('filter-url').value = '';
-            document.getElementById('filter-summary').value = '';
+            document.getElementById('filter-content').value = '';
 
             // Update the form heading for creating a new filter
             document.querySelector('#filter-edit-title').innerText = 'Create New Filter';
@@ -244,7 +242,7 @@
         articles.forEach(article => {
             const title = article.querySelector('a.item-element.title')?.innerText || '';
             const url = article.querySelector('a.item-element.title')?.href || '';
-            const summary = article.querySelector('.summary')?.innerText || '';
+            const content = article.querySelector('.flux_content')?.innerText || '';
 
             let matchesAnyFilter = false;
 
@@ -253,10 +251,10 @@
                 const filter = savedFilters[filterName];
                 const titleMatch = !filter.title || new RegExp(filter.title, 'i').test(title);
                 const urlMatch = !filter.url || new RegExp(filter.url, 'i').test(url);
-                const summaryMatch = !filter.summary || new RegExp(filter.summary, 'i').test(summary);
+                const contentMatch = !filter.content || new RegExp(filter.content, 'i').test(content);
 
                 // Check if all filter conditions are met (AND condition)
-                if (titleMatch && urlMatch && summaryMatch) {
+                if (titleMatch && urlMatch && contentMatch) {
                     matchesAnyFilter = true;
                     break;
                 }
