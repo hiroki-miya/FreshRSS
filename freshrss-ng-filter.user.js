@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name        FreshRSS NG Filter
 // @namespace   https://github.com/hiroki-miya
-// @version     1.0.1
+// @version     1.0.2
 // @description Mark as read and hide articles matching the rule in FreshRSS. Rules are described by regular expressions.
 // @author      hiroki-miya
 // @license     MIT
-// @match       https://freshrss.example.net
+// @match       https://freshrss.example.net/*
 // @grant       GM_addStyle
 // @grant       GM_getValue
 // @grant       GM_registerMenuCommand
@@ -17,7 +17,7 @@
     'use strict';
 
     // Language for sorting
-    const sortLocal = 'ja';
+    const sortLocale = 'ja';
 
     // Retrieve saved filters
     let savedFilters = GM_getValue('filters', {});
@@ -36,21 +36,37 @@
             background-color: white;
             border: 1px solid black;
             padding: 10px;
+            width: max-content;
         }
         #freshrss-ng-filter > h2 {
             box-shadow: inset 0 0 0 0.5px black;
             padding: 5px 10px;
             text-align: center;
+            cursor: move;
         }
         #freshrss-ng-filter > h4 {
             margin-top: 0;
         }
-        .filter-item,
+        #filter-list {
+            margin-bottom: 10px;
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+        .filter-item  {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
         #filter-edit > div {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            line-height: 2;
             margin-bottom: 5px;
+        }
+        #filter-edit > div input {
+            line-height: 2;
+            margin: 0;
         }
         .filter-name,
         #filter-edit > div > label {
@@ -59,6 +75,15 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+        #filter-edit > div > div:has(input[type="checkbox"]) {
+            margin-left: 5px;
+            max-width: 90%;
+            width: 300px;
+        }
+        #filter-edit > div input[type="checkbox"] {
+            transform: scale(1.5);
+            margin-left: 4px;
         }
         .edit-filter, .delete-filter,
         #filter-edit > div > input {
@@ -69,13 +94,16 @@
     // Function to render the filter list
     function updateFilterList() {
         // Sort filters
-        const filterNames = Object.keys(savedFilters).sort((a, b) => a.localeCompare(b, sortLocal));
+        const filterNames = Object.keys(savedFilters).sort((a, b) => a.localeCompare(b, sortLocale));
         const filterList = filterNames.map(name => {
+            const filter = savedFilters[name];
+            const checked = filter.disabled ? 'checked' : '';
             return `
                 <div class="filter-item">
                     <div class="filter-name">${name}</div>
                     <button class="edit-filter" data-name="${name}">Edit</button>
                     <button class="delete-filter" data-name="${name}">Delete</button>
+                    <label><input type="checkbox" class="disable-filter" data-name="${name}" ${checked}> Disabled</label>
                 </div>
             `;
         }).join('');
@@ -94,6 +122,7 @@
                 document.getElementById('filter-title').value = filter.title;
                 document.getElementById('filter-url').value = filter.url;
                 document.getElementById('filter-content').value = filter.content;
+                document.getElementById('filter-case').checked = filter.caseInsensitive || false;
 
                 editingFilterName = filterName;
 
@@ -103,6 +132,16 @@
             });
         });
 
+        Array.from(document.querySelectorAll('.disable-filter')).forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                const filterName = e.target.getAttribute('data-name');
+                savedFilters[filterName].disabled = e.target.checked;
+                GM_setValue('filters', savedFilters);
+                applyAllFilters();
+            });
+        });
+
+        document.getElementById('fnfs-toggle-all-filters').innerText = areFiltersDisabled() ? 'Enable All Filters' : 'Disable All Filters';
         // Re-register the filter delete button events
         Array.from(document.querySelectorAll('.delete-filter')).forEach(button => {
             button.addEventListener('click', () => {
@@ -115,12 +154,27 @@
         });
     }
 
+    function areFiltersDisabled() {
+        return Object.values(savedFilters).every(filter => filter.disabled);
+    }
+
+    function toggleAllFilters() {
+        const disableAll = !areFiltersDisabled();
+        Object.keys(savedFilters).forEach(filterName => {
+            savedFilters[filterName].disabled = disableAll;
+        });
+        GM_setValue('filters', savedFilters);
+        updateFilterList();
+        applyAllFilters();
+    }
+
     // Display filter settings
-    function showFilterSettings() {
+    function showSettings() {
         const settingsHTML = `
             <h2>NG Filter Settings</h2>
             <h4>Saved Filters</h4>
             <div id="filter-list"></div>
+            <button id="fnfs-toggle-all-filters">${areFiltersDisabled() ? 'Enable All Filters' : 'Disable All Filters'}</button>
             <br>
             <hr>
             <h4 id="filter-edit-title">Create New Filter</h4>
@@ -129,6 +183,7 @@
             <div><label>Title (Regex)</label><input type="text" id="filter-title"></div>
             <div><label>URL (Regex)</label><input type="text" id="filter-url"></div>
             <div><label>Content (Regex)</label><input type="text" id="filter-content"></div>
+            <div><label>Case insensitive?</label><div><input type="checkbox" id="filter-case"></div></div>
             <br>
             </div>
             <button id="fnfs-save">Save</button>
@@ -144,38 +199,16 @@
         // Initial render of saved filter list
         updateFilterList();
 
-        // Function to display the tooltip
-        function showTooltip(message) {
-            // Create the tooltip element
-            const tooltip = document.createElement('div');
-            tooltip.textContent = message;
-            tooltip.style.position = 'fixed';
-            tooltip.style.top = '50%';
-            tooltip.style.left = '50%';
-            tooltip.style.transform = 'translate(-50%, -50%)';
-            tooltip.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
-            tooltip.style.color = 'white';
-            tooltip.style.padding = '10px 20px';
-            tooltip.style.borderRadius = '5px';
-            tooltip.style.zIndex = '10000';
-            tooltip.style.fontSize = '16px';
-            tooltip.style.textAlign = 'center';
+        // Make settings panel draggable
+        makeDraggable(settingsDiv);
 
-                // Add the tooltip to the page
-            document.body.appendChild(tooltip);
-
-            // Automatically remove the tooltip after 1 second
-            setTimeout(() => {
-                document.body.removeChild(tooltip);
-            }, 1000);
-        }
-
-        // Save or update filter button event
+        // Save or update button event
         document.getElementById('fnfs-save').addEventListener('click', () => {
             const filterName = document.getElementById('filter-name').value;
             const filterTitle = document.getElementById('filter-title').value;
             const filterUrl = document.getElementById('filter-url').value;
             const filterContent = document.getElementById('filter-content').value;
+            const caseInsensitive = document.getElementById('filter-case').checked;
 
             if (!filterName) {
                 alert('Please enter a filter name');
@@ -186,7 +219,9 @@
             savedFilters[filterName] = {
                 title: filterTitle,
                 url: filterUrl,
-                content: filterContent
+                content: filterContent,
+                caseInsensitive: caseInsensitive,
+                disabled: false
             };
 
             // If the filter name was changed during editing, delete the old filter
@@ -196,15 +231,9 @@
 
             GM_setValue('filters', savedFilters);
 
-            // ツールチップを表示
             showTooltip('Saved');
 
-            // Clear text boxes and reset editingFilterName
-            document.getElementById('filter-name').value = '';
-            document.getElementById('filter-title').value = '';
-            document.getElementById('filter-url').value = '';
-            document.getElementById('filter-content').value = '';
-            editingFilterName = null;
+            initEdit();
 
             // Update filter list
             updateFilterList();
@@ -215,25 +244,111 @@
 
         // Clear button event
         document.getElementById('fnfs-clear').addEventListener('click', () => {
-            editingFilterName = null;
-            document.getElementById('filter-name').value = '';
-            document.getElementById('filter-title').value = '';
-            document.getElementById('filter-url').value = '';
-            document.getElementById('filter-content').value = '';
-
-            // Update the form heading for creating a new filter
-            document.querySelector('#filter-edit-title').innerText = 'Create New Filter';
-            document.querySelector('#fnfs-save').innerText = 'Save';
+            initEdit();
         });
 
         // Close button event
         document.getElementById('fnfs-close').addEventListener('click', () => {
             document.body.removeChild(settingsDiv);
         });
+
+        document.getElementById('fnfs-toggle-all-filters').addEventListener('click', toggleAllFilters);
     }
 
-    // Register filter settings menu
-    GM_registerMenuCommand('Settings', showFilterSettings);
+    function initEdit() {
+        editingFilterName = null;
+        document.getElementById('filter-name').value = '';
+        document.getElementById('filter-title').value = '';
+        document.getElementById('filter-url').value = '';
+        document.getElementById('filter-content').value = '';
+        document.getElementById('filter-case').checked = false;
+
+        // Update the form heading for creating a new filter
+        document.querySelector('#filter-edit-title').innerText = 'Create New Filter';
+        document.querySelector('#fnfs-save').innerText = 'Save';
+    }
+
+    // Function to display the tooltip
+    function showTooltip(message) {
+        // Create the tooltip element
+        const tooltip = document.createElement('div');
+        tooltip.textContent = message;
+        tooltip.style.position = 'fixed';
+        tooltip.style.top = '50%';
+        tooltip.style.left = '50%';
+        tooltip.style.transform = 'translate(-50%, -50%)';
+        tooltip.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
+        tooltip.style.color = 'white';
+        tooltip.style.padding = '10px 20px';
+        tooltip.style.borderRadius = '5px';
+        tooltip.style.zIndex = '10000';
+        tooltip.style.fontSize = '16px';
+        tooltip.style.textAlign = 'center';
+
+        // Add the tooltip to the page
+        document.body.appendChild(tooltip);
+
+        // Automatically remove the tooltip after 1 second
+        setTimeout(() => {
+            document.body.removeChild(tooltip);
+        }, 1000);
+    }
+
+    // Make element draggable
+    function makeDraggable(elmnt) {
+        const header = elmnt.querySelector('h2');
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        header.onmousedown = dragMouseDown;
+
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+
+            // Get the mouse cursor position at startup:
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
+        }
+
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+
+            // Calculate the new cursor position:
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+
+            // Set the element's new position:
+            elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+            elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+        }
+
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
+    }
+
+    // Mark as read and hide articles
+    function markAsDuplicate(articleElement) {
+        if (!articleElement) return;
+
+        // Check if mark_read function is available
+        if (typeof mark_read === 'function') {
+            mark_read(articleElement, true, true);
+        } else {
+            // Fallback: manually add 'read' class and trigger 'read' event
+            articleElement.classList.add('read');
+            const event = new Event('read');
+            articleElement.dispatchEvent(event);
+        }
+
+        // Hide the article
+        articleElement.remove();
+    }
 
     // Apply all filters automatically
     function applyAllFilters() {
@@ -246,24 +361,20 @@
 
             let matchesAnyFilter = false;
 
-            // Check all saved filters
             for (let filterName in savedFilters) {
                 const filter = savedFilters[filterName];
-                const titleMatch = !filter.title || new RegExp(filter.title, 'i').test(title);
-                const urlMatch = !filter.url || new RegExp(filter.url, 'i').test(url);
-                const contentMatch = !filter.content || new RegExp(filter.content, 'i').test(content);
+                if (filter.disabled) continue;
+
+                const regexFlags = filter.caseInsensitive ? 'i' : '';
+                const titleMatch = !filter.title || new RegExp(filter.title, regexFlags).test(title);
+                const urlMatch = !filter.url || new RegExp(filter.url, regexFlags).test(url);
+                const contentMatch = !filter.content || new RegExp(filter.content, regexFlags).test(content);
 
                 // Check if all filter conditions are met (AND condition)
                 if (titleMatch && urlMatch && contentMatch) {
-                    matchesAnyFilter = true;
+                    markAsDuplicate(article);
                     break;
                 }
-            }
-
-            // Mark as read and hide articles
-            if (matchesAnyFilter) {
-                mark_read(article, true, true);
-                article.remove();
             }
         });
     }
@@ -274,13 +385,15 @@
         if (targetNode) {
             const observer = new MutationObserver(applyAllFilters);
             observer.observe(targetNode, { childList: true, subtree: true });
-            // Initial filter application
             applyAllFilters();
         } else {
             // Retry if #stream is not found
             setTimeout(setupObserver, 1000);
         }
     }
+
+    // Register settings screen
+    GM_registerMenuCommand('Settings', showSettings);
 
     // Start setupObserver when the script starts
     setupObserver();
