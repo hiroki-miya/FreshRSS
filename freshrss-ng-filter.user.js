@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        FreshRSS NG Filter
 // @namespace   https://github.com/hiroki-miya
-// @version     1.0.2
+// @version     1.0.3
 // @description Mark as read and hide articles matching the rule in FreshRSS. Rules are described by regular expressions.
 // @author      hiroki-miya
 // @license     MIT
@@ -89,6 +89,24 @@
         #filter-edit > div > input {
             margin-left: 5px;
         }
+        .filter-info-label {
+            display: inline;
+        }
+        .filter-info {
+            display: inline-block;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            min-height: 16px;
+            line-height: 1.2;
+            margin-left: 4px;
+            position: relative;
+            top: -6px;
+            text-align: center;
+            background-color: black;
+            color: white;
+            font-weight: 700;
+        }
     `);
 
     // Function to render the filter list
@@ -119,9 +137,10 @@
 
                 // Pre-fill the form with the filter values
                 document.getElementById('filter-name').value = filterName;
-                document.getElementById('filter-title').value = filter.title;
-                document.getElementById('filter-url').value = filter.url;
-                document.getElementById('filter-content').value = filter.content;
+                document.getElementById('filter-title').value = filter.title || '';
+                document.getElementById('filter-url').value = filter.url || '';
+                document.getElementById('filter-content').value = filter.content || '';
+                document.getElementById('filter-text').value = filter.text || '';
                 document.getElementById('filter-case').checked = filter.caseInsensitive || false;
 
                 editingFilterName = filterName;
@@ -180,9 +199,10 @@
             <h4 id="filter-edit-title">Create New Filter</h4>
             <div id="filter-edit">
             <div><label>Filter Name</label><input type="text" id="filter-name"></div>
-            <div><label>Title (Regex)</label><input type="text" id="filter-title"></div>
-            <div><label>URL (Regex)</label><input type="text" id="filter-url"></div>
-            <div><label>Content (Regex)</label><input type="text" id="filter-content"></div>
+            <div><label>Title</label><input type="text" id="filter-title"></div>
+            <div><label>URL</label><input type="text" id="filter-url"></div>
+            <div><label class="filter-info-label">Content<div title="article.flux_content.innerText" class="filter-info">i</div></label><input type="text" id="filter-content"></div>
+            <div><label class="filter-info-label">Text<div title="div.text.innerHTML" class="filter-info">i</div></label><input type="text" id="filter-text"></div>
             <div><label>Case insensitive?</label><div><input type="checkbox" id="filter-case"></div></div>
             <br>
             </div>
@@ -208,6 +228,7 @@
             const filterTitle = document.getElementById('filter-title').value;
             const filterUrl = document.getElementById('filter-url').value;
             const filterContent = document.getElementById('filter-content').value;
+            const filterText = document.getElementById('filter-text').value;
             const caseInsensitive = document.getElementById('filter-case').checked;
 
             if (!filterName) {
@@ -220,6 +241,7 @@
                 title: filterTitle,
                 url: filterUrl,
                 content: filterContent,
+                text: filterText,
                 caseInsensitive: caseInsensitive,
                 disabled: false
             };
@@ -261,6 +283,7 @@
         document.getElementById('filter-title').value = '';
         document.getElementById('filter-url').value = '';
         document.getElementById('filter-content').value = '';
+        document.getElementById('filter-text').value = '';
         document.getElementById('filter-case').checked = false;
 
         // Update the form heading for creating a new filter
@@ -333,7 +356,7 @@
     }
 
     // Mark as read and hide articles
-    function markAsDuplicate(articleElement) {
+    function markAsNG(articleElement) {
         if (!articleElement) return;
 
         // Check if mark_read function is available
@@ -358,6 +381,7 @@
             const title = article.querySelector('a.item-element.title')?.innerText || '';
             const url = article.querySelector('a.item-element.title')?.href || '';
             const content = article.querySelector('.flux_content')?.innerText || '';
+            const text = article.querySelector('div.text')?.innerHTML || '';
 
             let matchesAnyFilter = false;
 
@@ -369,10 +393,16 @@
                 const titleMatch = !filter.title || new RegExp(filter.title, regexFlags).test(title);
                 const urlMatch = !filter.url || new RegExp(filter.url, regexFlags).test(url);
                 const contentMatch = !filter.content || new RegExp(filter.content, regexFlags).test(content);
+                const textMatch = !filter.text || new RegExp(filter.text, regexFlags).test(text);
+
+//                 console.log('titleMatch(' + titleMatch + '): ' + filter.title + ' = ' + title + '\n' +
+//                      'urlMatch(' + urlMatch + '): ' + filter.url + ' = ' + url + '\n' +
+//                      'contentMatch(' + contentMatch + '): ' + filter.content + ' = ' + content + '\n' +
+//                      'textMatch(' + textMatch + '): ' + filter.text + ' = ' + text + '\n');
 
                 // Check if all filter conditions are met (AND condition)
-                if (titleMatch && urlMatch && contentMatch) {
-                    markAsDuplicate(article);
+                if (titleMatch && urlMatch && contentMatch && textMatch) {
+                    markAsNG(article);
                     break;
                 }
             }

@@ -5,7 +5,7 @@
 // @description Open the selected link in a new background tab
 // @author      hiroki-miya
 // @license     MIT
-// @match       https://freshrss.example.net
+// @match       https://freshrss.example.net/*
 // @grant       GM_openInTab
 // @downloadURL https://update.greasyfork.org/scripts/509572/FreshRSS%20Open%20in%20Background%20Tab.user.js
 // @updateURL https://update.greasyfork.org/scripts/509572/FreshRSS%20Open%20in%20Background%20Tab.meta.js

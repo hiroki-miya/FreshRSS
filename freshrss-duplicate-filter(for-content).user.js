@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name        FreshRSS Duplicate Filter
+// @name        FreshRSS Duplicate Filter(for content)
 // @namespace   https://github.com/hiroki-miya
-// @version     1.0.3
-// @description Mark as read and hide older articles in the FreshRSS feed list that have the same title, URL and content within a category or feed.
+// @version     1.0.1
+// @description Mark as read and hide older articles in the FreshRSS feed list that have the same content within a category or feed.
 // @author      hiroki-miya
 // @license     MIT
 // @match       https://freshrss.example.net/*
@@ -27,7 +27,7 @@
 
     // Add styles
     GM_addStyle(`
-        #freshrss-duplicate-filter {
+        #freshrss-duplicate-filter-cnt {
             position: fixed;
             top: 50%;
             left: 50%;
@@ -38,16 +38,16 @@
             padding: 10px;
             width: max-content;
         }
-        #freshrss-duplicate-filter > h2 {
+        #freshrss-duplicate-filter-cnt > h2 {
             box-shadow: inset 0 0 0 0.5px black;
             padding: 5px 10px;
             text-align: center;
             cursor: move;
         }
-        #freshrss-duplicate-filter > h4 {
+        #freshrss-duplicate-filter-cnt > h4 {
             margin-top: 0;
         }
-        #fdfs-categories {
+        #fdfsc-categories {
             margin-bottom: 10px;
             max-height: 60vh;
             overflow-y: auto;
@@ -67,17 +67,17 @@
         const limitInput = `<label>Check Limit: <input type="number" id="checkLimit" value="${checkLimit}" min="1"></label>`;
 
         const settingsHTML = `
-                <h2>Duplicate Filter Settings</h2>
+                <h2>Duplicate Filter Settings(for div.content > div.text)</h2>
                 <h4>Select category or feed</h4>
-                <div id="fdfs-categories">${categoryOptions}</div>
+                <div id="fdfsc-categories">${categoryOptions}</div>
                 ${limitInput}
                 <br>
-                <button id="fdfs-save">Save</button>
-                <button id="fdfs-close">Close</button>
+                <button id="fdfsc-save">Save</button>
+                <button id="fdfsc-close">Close</button>
         `;
 
         const settingsDiv = document.createElement('div');
-        settingsDiv.id = "freshrss-duplicate-filter";
+        settingsDiv.id = "freshrss-duplicate-filter-cnt";
         settingsDiv.innerHTML = settingsHTML;
         document.body.appendChild(settingsDiv);
 
@@ -85,7 +85,7 @@
         makeDraggable(settingsDiv);
 
         // Save button event
-        document.getElementById('fdfs-save').addEventListener('click', () => {
+        document.getElementById('fdfsc-save').addEventListener('click', () => {
             const selectedCheckboxes = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value);
             const newLimit = parseInt(document.getElementById('checkLimit').value, 10);
 
@@ -99,7 +99,7 @@
         });
 
         // Close button event
-        document.getElementById('fdfs-close').addEventListener('click', () => {
+        document.getElementById('fdfsc-close').addEventListener('click', () => {
             document.body.removeChild(settingsDiv);
         });
     }
@@ -188,35 +188,31 @@
 
     // Check for duplicate articles and mark older ones as read
     function markDuplicatesAsRead() {
-        const articles = Array.from(document.querySelectorAll('#stream > .flux'));
+        const articles = Array.from(document.querySelectorAll('#stream > .flux:not(:has(.duplicate))'));
         const articleMap = new Map();
 
         articles.slice(-checkLimit).forEach(article => {
-            const titleElement = article.querySelector('a.item-element.title');
-            if (!titleElement) return;
+            const contentElement = article.querySelector('div.content > div.text');
+            if (!contentElement) return;
 
-            const title = titleElement.innerText;
-            const url = titleElement.href;
+            const content = contentElement.innerText.trim();
             const timeElement = article.querySelector('.date > time');
             if (!timeElement) return;
 
             const articleData = { element: article, timestamp: new Date(timeElement.datetime).getTime() };
 
             // Duplicate check
-            if (articleMap.has(title)) {
-                const existingArticle = articleMap.get(title);
-                if (existingArticle.url === url) {
-                    const older = existingArticle.timestamp < articleData.timestamp ? existingArticle : articleData;
+            if (articleMap.has(content)) {
+                const existingArticle = articleMap.get(content);
+                const older = existingArticle.timestamp < articleData.timestamp ? existingArticle : articleData;
 
-                    // Mark older articles as duplicates
-                    markAsDuplicate(older.element);
-                }
+                // Mark older articles as duplicates
+                markAsDuplicate(older.element);
             } else {
-                articleMap.set(title, { ...articleData, url });
+                articleMap.set(content, articleData);
             }
         });
     }
-
 
     // Get the current category
     function getCurrentCategory() {

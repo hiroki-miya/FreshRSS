@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        FreshRSS Keyword Highlight
 // @namespace   https://github.com/hiroki-miya
-// @version     1.0.1
+// @version     1.0.2
 // @description Highlight articles in FreshRSS that match the rule. Rules are described by regular expressions.
 // @author      hiroki-miya
 // @license     MIT
@@ -67,7 +67,7 @@
             line-height: 2;
             margin-bottom: 5px;
         }
-        #highlight-edit > div input{
+        #highlight-edit > div input {
             line-height: 2;
             margin: 0;
         }
@@ -91,6 +91,22 @@
         .edit-highlight, .delete-highlight,
         #highlight-edit > div > input {
             margin-left: 5px;
+        }
+        .highlight-info-label {
+            display: inline;
+        }
+        .highlight-info {
+            display: inline-block;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            min-height: 16px;
+            line-height: 1.2;
+            margin-left: 4px;
+            text-align: center;
+            background-color: black;
+            color: white;
+            font-weight: 700;
         }
     `);
 
@@ -119,9 +135,10 @@
 
                 // Pre-fill the form with the highlight values
                 document.getElementById('highlight-name').value = highlightName;
-                document.getElementById('highlight-title').value = highlight.title;
-                document.getElementById('highlight-url').value = highlight.url;
-                document.getElementById('highlight-content').value = highlight.content;
+                document.getElementById('highlight-title').value = highlight.title || '';
+                document.getElementById('highlight-url').value = highlight.url || '';
+                document.getElementById('highlight-content').value = highlight.content || '';
+                document.getElementById('highlight-text').value = highlight.text || '';
                 document.getElementById('highlight-case').checked = highlight.caseInsensitive || false;
 
                 editingHighlightName = highlightName;
@@ -155,9 +172,10 @@
             <h4 id="highlight-edit-title">Create New Highlight Rule</h4>
             <div id="highlight-edit">
             <div><label>Highlight Name</label><input type="text" id="highlight-name"></div>
-            <div><label>Title (Regex)</label><input type="text" id="highlight-title"></div>
-            <div><label>URL (Regex)</label><input type="text" id="highlight-url"></div>
-            <div><label>Content (Regex)</label><input type="text" id="highlight-content"></div>
+            <div><label>Title</label><input type="text" id="highlight-title"></div>
+            <div><label>URL</label><input type="text" id="highlight-url"></div>
+            <div><label class="highlight-info-label">Content<div title="article.flux_content.innerText" class="highlight-info">i</div></label><input type="text" id="highlight-content"></div>
+            <div><label class="highlight-info-label">Text<div title="div.text.innerHTML" class="highlight-info">i</div></label><input type="text" id="highlight-text"></div>
             <div><label>Case insensitive?</label><div><input type="checkbox" id="highlight-case"></div></div>
             <br>
             </div>
@@ -183,6 +201,7 @@
             const highlightTitle = document.getElementById('highlight-title').value;
             const highlightUrl = document.getElementById('highlight-url').value;
             const highlightContent = document.getElementById('highlight-content').value;
+            const highlightText = document.getElementById('highlight-text').value;
             const caseInsensitive = document.getElementById('highlight-case').checked;
 
             if (!highlightName) {
@@ -195,6 +214,7 @@
                 title: highlightTitle,
                 url: highlightUrl,
                 content: highlightContent,
+                text: highlightText,
                 caseInsensitive: caseInsensitive
             };
 
@@ -227,15 +247,13 @@
         });
     }
 
-    // Register settings screen
-    GM_registerMenuCommand('Settings', showSettings);
-
     function initEdit() {
         editingHighlightName = null;
         document.getElementById('highlight-name').value = '';
         document.getElementById('highlight-title').value = '';
         document.getElementById('highlight-url').value = '';
         document.getElementById('highlight-content').value = '';
+        document.getElementById('highlight-text').value = '';
         document.getElementById('highlight-case').checked = false;
 
         // Update the form heading for creating a new highlight
@@ -312,6 +330,7 @@
             const title = article.querySelector('a.item-element.title')?.innerText || '';
             const url = article.querySelector('a.item-element.title')?.href || '';
             const content = article.querySelector('.flux_content')?.innerText || '';
+            const text = article.querySelector('div.text')?.innerHTML || '';
 
             let matchesAnyHighlight = false;
 
@@ -322,9 +341,15 @@
                 const titleMatch = !highlight.title || new RegExp(highlight.title, regexFlags).test(title);
                 const urlMatch = !highlight.url || new RegExp(highlight.url, regexFlags).test(url);
                 const contentMatch = !highlight.content || new RegExp(highlight.content, regexFlags).test(content);
+                const textMatch = !highlight.text || new RegExp(highlight.text, regexFlags).test(text);
+
+//                 console.log('titleMatch(' + titleMatch + '): ' + highlight.title + ' = ' + title + '\n' +
+//                      'urlMatch(' + urlMatch + '): ' + highlight.url + ' = ' + url + '\n' +
+//                      'contentMatch(' + contentMatch + '): ' + highlight.content + ' = ' + content + '\n' +
+//                      'textMatch(' + textMatch + '): ' + highlight.text + ' = ' + text + '\n');
 
                 // Check if all highlight conditions are met (AND condition)
-                if (titleMatch && urlMatch && contentMatch) {
+                if (titleMatch && urlMatch && contentMatch && textMatch) {
                     matchesAnyHighlight = true;
                     break;
                 }
@@ -354,6 +379,9 @@
             setTimeout(setupObserver, 1000);
         }
     }
+
+    // Register settings screen
+    GM_registerMenuCommand('Settings', showSettings);
 
     // Start setupObserver when the script starts
     setupObserver();
