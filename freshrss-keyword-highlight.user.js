@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        FreshRSS Keyword Highlight
 // @namespace   https://github.com/hiroki-miya
-// @version     1.0.2
+// @version     1.0.3
 // @description Highlight articles in FreshRSS that match the rule. Rules are described by regular expressions.
 // @author      hiroki-miya
 // @license     MIT
@@ -11,6 +11,8 @@
 // @grant       GM_registerMenuCommand
 // @grant       GM_setValue
 // @run-at      document-idle
+// @downloadURL https://update.greasyfork.org/scripts/509728/FreshRSS%20Keyword%20Highlight.user.js
+// @updateURL https://update.greasyfork.org/scripts/509728/FreshRSS%20Keyword%20Highlight.meta.js
 // ==/UserScript==
 
 (function() {
@@ -135,6 +137,7 @@
 
                 // Pre-fill the form with the highlight values
                 document.getElementById('highlight-name').value = highlightName;
+                document.getElementById('highlight-currentUrl').value = highlight.currentUrl || '';
                 document.getElementById('highlight-title').value = highlight.title || '';
                 document.getElementById('highlight-url').value = highlight.url || '';
                 document.getElementById('highlight-content').value = highlight.content || '';
@@ -172,8 +175,9 @@
             <h4 id="highlight-edit-title">Create New Highlight Rule</h4>
             <div id="highlight-edit">
             <div><label>Highlight Name</label><input type="text" id="highlight-name"></div>
+            <div><label>FreshRSS Feed List URL</label><input type="text" id="highlight-currentUrl"></div>
             <div><label>Title</label><input type="text" id="highlight-title"></div>
-            <div><label>URL</label><input type="text" id="highlight-url"></div>
+            <div><label>Content URL</label><input type="text" id="highlight-url"></div>
             <div><label class="highlight-info-label">Content<div title="article.flux_content.innerText" class="highlight-info">i</div></label><input type="text" id="highlight-content"></div>
             <div><label class="highlight-info-label">Text<div title="div.text.innerHTML" class="highlight-info">i</div></label><input type="text" id="highlight-text"></div>
             <div><label>Case insensitive?</label><div><input type="checkbox" id="highlight-case"></div></div>
@@ -198,6 +202,7 @@
         // Save or update button event
         document.getElementById('fkh-save').addEventListener('click', () => {
             const highlightName = document.getElementById('highlight-name').value;
+            const highlightCurrentUrl = document.getElementById('highlight-currentUrl').value;
             const highlightTitle = document.getElementById('highlight-title').value;
             const highlightUrl = document.getElementById('highlight-url').value;
             const highlightContent = document.getElementById('highlight-content').value;
@@ -211,6 +216,7 @@
 
             // Save or update the highlight
             savedHighlights[highlightName] = {
+                currentUrl: highlightCurrentUrl,
                 title: highlightTitle,
                 url: highlightUrl,
                 content: highlightContent,
@@ -250,6 +256,7 @@
     function initEdit() {
         editingHighlightName = null;
         document.getElementById('highlight-name').value = '';
+        document.getElementById('highlight-currentUrl').value = '';
         document.getElementById('highlight-title').value = '';
         document.getElementById('highlight-url').value = '';
         document.getElementById('highlight-content').value = '';
@@ -325,6 +332,7 @@
     // Apply all highlights automatically
     function applyAllHighlights() {
         const articles = Array.from(document.querySelectorAll('#stream > .flux'));
+        const currentPageUrl = window.location.href;
 
         articles.forEach(article => {
             const title = article.querySelector('a.item-element.title')?.innerText || '';
@@ -338,6 +346,7 @@
             for (let highlightName in savedHighlights) {
                 const highlight = savedHighlights[highlightName];
                 const regexFlags = highlight.caseInsensitive ? 'i' : '';
+                const currentUrlMatch = !highlight.currentUrl || new RegExp(highlight.currentUrl, regexFlags).test(currentPageUrl);
                 const titleMatch = !highlight.title || new RegExp(highlight.title, regexFlags).test(title);
                 const urlMatch = !highlight.url || new RegExp(highlight.url, regexFlags).test(url);
                 const contentMatch = !highlight.content || new RegExp(highlight.content, regexFlags).test(content);
@@ -349,7 +358,7 @@
 //                      'textMatch(' + textMatch + '): ' + highlight.text + ' = ' + text + '\n');
 
                 // Check if all highlight conditions are met (AND condition)
-                if (titleMatch && urlMatch && contentMatch && textMatch) {
+                if (currentUrlMatch && titleMatch && urlMatch && contentMatch && textMatch) {
                     matchesAnyHighlight = true;
                     break;
                 }

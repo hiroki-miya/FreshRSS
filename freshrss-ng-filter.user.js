@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        FreshRSS NG Filter
 // @namespace   https://github.com/hiroki-miya
-// @version     1.0.3
+// @version     1.0.4
 // @description Mark as read and hide articles matching the rule in FreshRSS. Rules are described by regular expressions.
 // @author      hiroki-miya
 // @license     MIT
@@ -11,6 +11,8 @@
 // @grant       GM_registerMenuCommand
 // @grant       GM_setValue
 // @run-at      document-idle
+// @downloadURL https://update.greasyfork.org/scripts/509727/FreshRSS%20NG%20Filter.user.js
+// @updateURL https://update.greasyfork.org/scripts/509727/FreshRSS%20NG%20Filter.meta.js
 // ==/UserScript==
 
 (function() {
@@ -137,6 +139,7 @@
 
                 // Pre-fill the form with the filter values
                 document.getElementById('filter-name').value = filterName;
+                document.getElementById('filter-currentUrl').value = filter.currentUrl || '';
                 document.getElementById('filter-title').value = filter.title || '';
                 document.getElementById('filter-url').value = filter.url || '';
                 document.getElementById('filter-content').value = filter.content || '';
@@ -199,8 +202,9 @@
             <h4 id="filter-edit-title">Create New Filter</h4>
             <div id="filter-edit">
             <div><label>Filter Name</label><input type="text" id="filter-name"></div>
+            <div><label>FreshRSS Feed List URL</label><input type="text" id="filter-currentUrl"></div>
             <div><label>Title</label><input type="text" id="filter-title"></div>
-            <div><label>URL</label><input type="text" id="filter-url"></div>
+            <div><label>Content URL</label><input type="text" id="filter-url"></div>
             <div><label class="filter-info-label">Content<div title="article.flux_content.innerText" class="filter-info">i</div></label><input type="text" id="filter-content"></div>
             <div><label class="filter-info-label">Text<div title="div.text.innerHTML" class="filter-info">i</div></label><input type="text" id="filter-text"></div>
             <div><label>Case insensitive?</label><div><input type="checkbox" id="filter-case"></div></div>
@@ -225,6 +229,7 @@
         // Save or update button event
         document.getElementById('fnfs-save').addEventListener('click', () => {
             const filterName = document.getElementById('filter-name').value;
+            const filterCurrentUrl = document.getElementById('filter-currentUrl').value;
             const filterTitle = document.getElementById('filter-title').value;
             const filterUrl = document.getElementById('filter-url').value;
             const filterContent = document.getElementById('filter-content').value;
@@ -238,6 +243,7 @@
 
             // Save or update the filter
             savedFilters[filterName] = {
+                currentUrl: filterCurrentUrl,
                 title: filterTitle,
                 url: filterUrl,
                 content: filterContent,
@@ -280,6 +286,7 @@
     function initEdit() {
         editingFilterName = null;
         document.getElementById('filter-name').value = '';
+        document.getElementById('filter-currentUrl').value = '';
         document.getElementById('filter-title').value = '';
         document.getElementById('filter-url').value = '';
         document.getElementById('filter-content').value = '';
@@ -376,6 +383,7 @@
     // Apply all filters automatically
     function applyAllFilters() {
         const articles = Array.from(document.querySelectorAll('#stream > .flux'));
+        const currentPageUrl = window.location.href;
 
         articles.forEach(article => {
             const title = article.querySelector('a.item-element.title')?.innerText || '';
@@ -390,6 +398,7 @@
                 if (filter.disabled) continue;
 
                 const regexFlags = filter.caseInsensitive ? 'i' : '';
+                const currentUrlMatch = !filter.currentUrl || new RegExp(filter.currentUrl, regexFlags).test(currentPageUrl);
                 const titleMatch = !filter.title || new RegExp(filter.title, regexFlags).test(title);
                 const urlMatch = !filter.url || new RegExp(filter.url, regexFlags).test(url);
                 const contentMatch = !filter.content || new RegExp(filter.content, regexFlags).test(content);
@@ -401,7 +410,7 @@
 //                      'textMatch(' + textMatch + '): ' + filter.text + ' = ' + text + '\n');
 
                 // Check if all filter conditions are met (AND condition)
-                if (titleMatch && urlMatch && contentMatch && textMatch) {
+                if (currentUrlMatch && titleMatch && urlMatch && contentMatch && textMatch) {
                     markAsNG(article);
                     break;
                 }
