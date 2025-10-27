@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name        FreshRSS Duplicate Filter(for URL)
 // @namespace   https://github.com/hiroki-miya
-// @version     1.0.0
+// @version     1.0.1
 // @description Mark as read and hide older articles in the FreshRSS feed list that have the same URL within a category or feed.
 // @author      hiroki-miya
 // @license     MIT
-// @match       https://freshrss.example.net/*
+// @match       https://hirokinv.com/rss/*
 // @grant       GM_addStyle
 // @grant       GM_getValue
 // @grant       GM_registerMenuCommand
@@ -27,7 +27,7 @@
 
     // Add styles
     GM_addStyle(`
-        #freshrss-duplicate-filter-cnt {
+        #freshrss-duplicate-filter-url {
             position: fixed;
             top: 50%;
             left: 50%;
@@ -38,16 +38,16 @@
             padding: 10px;
             width: max-content;
         }
-        #freshrss-duplicate-filter-cnt > h2 {
+        #freshrss-duplicate-filter-url > h2 {
             box-shadow: inset 0 0 0 0.5px black;
             padding: 5px 10px;
             text-align: center;
             cursor: move;
         }
-        #freshrss-duplicate-filter-cnt > h4 {
+        #freshrss-duplicate-filter-url > h4 {
             margin-top: 0;
         }
-        #fdfsc-categories {
+        #fdfsu-categories {
             margin-bottom: 10px;
             max-height: 60vh;
             overflow-y: auto;
@@ -67,17 +67,17 @@
         const limitInput = `<label>Check Limit: <input type="number" id="checkLimit" value="${checkLimit}" min="1"></label>`;
 
         const settingsHTML = `
-                <h2>Duplicate Filter Settings(for div.content > div.text)</h2>
+                <h2>Duplicate Filter Settings(for URL)</h2>
                 <h4>Select category or feed</h4>
-                <div id="fdfsc-categories">${categoryOptions}</div>
+                <div id="fdfsu-categories">${categoryOptions}</div>
                 ${limitInput}
                 <br>
-                <button id="fdfsc-save">Save</button>
-                <button id="fdfsc-close">Close</button>
+                <button id="fdfsu-save">Save</button>
+                <button id="fdfsu-close">Close</button>
         `;
 
         const settingsDiv = document.createElement('div');
-        settingsDiv.id = "freshrss-duplicate-filter-cnt";
+        settingsDiv.id = "freshrss-duplicate-filter-url";
         settingsDiv.innerHTML = settingsHTML;
         document.body.appendChild(settingsDiv);
 
@@ -85,12 +85,16 @@
         makeDraggable(settingsDiv);
 
         // Save button event
-        document.getElementById('fdfsc-save').addEventListener('click', () => {
+        document.getElementById('fdfsu-save').addEventListener('click', () => {
             const selectedCheckboxes = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value);
             const newLimit = parseInt(document.getElementById('checkLimit').value, 10);
 
             GM_setValue('selectedCategories', selectedCheckboxes);
             GM_setValue('checkLimit', newLimit);
+
+            // Update the loaded settings
+            selectedCategories = selectedCheckboxes;
+            checkLimit = newLimit;
 
             showTooltip('Saved');
 
@@ -99,7 +103,7 @@
         });
 
         // Close button event
-        document.getElementById('fdfsc-close').addEventListener('click', () => {
+        document.getElementById('fdfsu-close').addEventListener('click', () => {
             document.body.removeChild(settingsDiv);
         });
     }
@@ -186,16 +190,32 @@
         articleElement.remove();
     }
 
-    // Check for duplicate articles and mark older ones as read
-    function markDuplicatesAsRead() {
+    // Check for duplicate articles and mark older ones as read (with retry support)
+    function markDuplicatesAsRead(retryCount = 0) {
         const articles = Array.from(document.querySelectorAll('#stream > .flux:not(:has(.duplicate))'));
+
+        // If no articles found and we haven't exceeded retry limit, wait and retry
+        if (articles.length === 0 && retryCount < 10) {
+            setTimeout(() => markDuplicatesAsRead(retryCount + 1), 300);
+            return;
+        }
+
+        if (articles.length === 0) {
+            return;
+        }
+
         const articleMap = new Map();
+        let duplicateCount = 0;
 
         articles.slice(-checkLimit).forEach(article => {
             const titleElement = article.querySelector('a.item-element.title');
             if (!titleElement) return;
 
             const url = titleElement.href;
+
+            // Skip if URL is invalid
+            if (!url) return;
+
             const timeElement = article.querySelector('.date > time');
             if (!timeElement) return;
 
@@ -208,6 +228,7 @@
 
                 // Mark older articles as duplicates
                 markAsDuplicate(older.element);
+                duplicateCount++;
             } else {
                 articleMap.set(url, articleData);
             }
@@ -229,27 +250,100 @@
         }
     }
 
-    // Setup MutationObserver
+    // Check if should run in current category
+    function shouldRunInCurrentCategory() {
+        const currentCategory = getCurrentCategory();
+        const shouldRun = currentCategory && selectedCategories.includes(currentCategory);
+        return shouldRun;
+    }
+
+    // Debounce function to prevent excessive calls
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // Main check function with debounce
+    const debouncedCheck = debounce(() => {
+        if (shouldRunInCurrentCategory()) {
+            markDuplicatesAsRead();
+        }
+    }, 500);
+
+    // Setup multiple detection methods
     function setupObserver() {
         const targetNode = document.querySelector('#stream');
-        if (targetNode) {
-            const observer = new MutationObserver(() => {
-                const currentCategory = getCurrentCategory();
-                if (currentCategory && selectedCategories.includes(currentCategory)) {
-                    markDuplicatesAsRead();
-                }
-            });
-            observer.observe(targetNode, { childList: true, subtree: true });
+        if (!targetNode) {
+            setTimeout(setupObserver, 1000);
+            return;
+        }
 
-            // Initial run
-            const currentCategory = getCurrentCategory();
-            if (currentCategory && selectedCategories.includes(currentCategory)) {
+        // Method 1: MutationObserver for #stream changes
+        const streamObserver = new MutationObserver((mutations) => {
+            // Check if articles were added
+            const articlesAdded = mutations.some(mutation =>
+                mutation.addedNodes.length > 0 &&
+                Array.from(mutation.addedNodes).some(node =>
+                    node.classList && node.classList.contains('flux')
+                )
+            );
+
+            if (articlesAdded) {
+                debouncedCheck();
+            }
+        });
+        streamObserver.observe(targetNode, { childList: true, subtree: false });
+
+        // Method 2: URL change detection (for feed switching)
+        let lastUrl = location.href;
+        const urlObserver = new MutationObserver(() => {
+            const url = location.href;
+            if (url !== lastUrl) {
+                lastUrl = url;
+                // Wait a bit for the content to load
+                setTimeout(debouncedCheck, 800);
+            }
+        });
+        urlObserver.observe(document, { subtree: true, childList: true });
+
+        // Method 3: Sidebar click detection
+        const sidebar = document.querySelector('#sidebar');
+        if (sidebar) {
+            sidebar.addEventListener('click', (e) => {
+                const target = e.target.closest('a');
+                if (target) {
+                    setTimeout(debouncedCheck, 800);
+                }
+            }, true);
+        }
+
+        // Method 4: Watch for loading indicators
+        const loadingObserver = new MutationObserver(() => {
+            const loadingElement = document.querySelector('.loading, #load_more.loading');
+            if (!loadingElement) {
+                // Loading finished
+                debouncedCheck();
+            }
+        });
+        loadingObserver.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class'],
+            subtree: true
+        });
+
+        // Initial run
+        setTimeout(() => {
+            if (shouldRunInCurrentCategory()) {
                 markDuplicatesAsRead();
             }
-        } else {
-            // Retry if #stream is not found
-            setTimeout(setupObserver, 1000);
-        }
+        }, 1500);
     }
 
     // Start setupObserver when the script starts
