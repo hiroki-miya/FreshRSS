@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        FreshRSS Duplicate Filter
+// @name        FreshRSS Duplicate Filter (content or url)
 // @namespace   https://github.com/hiroki-miya
 // @version     1.0.5
 // @description Mark as read and hide older articles in the FreshRSS feed list that have the same title, URL and content within a category or feed.
@@ -116,7 +116,7 @@
   // Settings UI
   // -----------------------------
   const PANEL_ID = 'freshrss-duplicate-filter';
-  const PANEL_POS_KEY = 'fdf_panel_pos';
+  const PANEL_POS_KEY = 'fdf_panel_pos_content_or_url';
 
   function showSettings() {
     // remove existing panel to avoid duplicates
@@ -129,7 +129,7 @@
     panel.id = PANEL_ID;
 
     const h2 = document.createElement('h2');
-    h2.textContent = 'Duplicate Filter Settings';
+    h2.textContent = 'Duplicate Filter Settings (content or url)';
     panel.appendChild(h2);
 
     const h4 = document.createElement('h4');
@@ -254,7 +254,7 @@
 
 
   // -----------------------------
-  // Duplicate key: Title + URL
+  // Normalization helpers
   // -----------------------------
   function normalizeText(s) {
     return (s || '')
@@ -286,11 +286,25 @@
     }
   }
 
-  function getTitleUrlKey(flux) {
+  // -----------------------------
+  // Extract URL + Content from a ".flux" node
+  // -----------------------------
+  function extractArticleUrl(flux) {
     const a = $('a.item-element.title, a.title, .item-title a, h1 a, h2 a, h3 a', flux);
-    const title = normalizeText(a?.textContent);
-    const url = canonicalizeUrl(a?.href);
-    return (title && url) ? `t:${title}||u:${url}` : '';
+    return canonicalizeUrl(a?.href);
+  }
+
+  function extractArticleContent(flux) {
+    // Try common FreshRSS containers first
+    const el =
+      $('div.content > div.text', flux) ||
+      $('div.content', flux) ||
+      $('.content', flux) ||
+      $('article', flux);
+
+    const text = normalizeText(el?.textContent);
+    // Avoid ultra-short snippets becoming "duplicates" by accident
+    return text && text.length >= 20 ? text : '';
   }
 
   // -----------------------------
@@ -460,6 +474,7 @@
 
   // -----------------------------
   // Main: scan current DOM order, keep newest unique
+  // Duplicate = URL matches OR Content matches
   // -----------------------------
   function runOnce() {
     if (!shouldRunHere()) return;
@@ -470,17 +485,24 @@
     const items = $$('.flux', stream);
     if (!items.length) return;
 
-    const seen = new Set();
-    items.slice(0, Math.max(1, checkLimit)).forEach(flux => {
-      const key = getTitleUrlKey(flux);
-      if (!key) return;
+    const seenUrls = new Set();
+    const seenContents = new Set();
 
-      if (seen.has(key)) {
+    items.slice(0, Math.max(1, checkLimit)).forEach(flux => {
+      const url = extractArticleUrl(flux);
+      const content = extractArticleContent(flux);
+
+      const isDupByUrl = !!url && seenUrls.has(url);
+      const isDupByContent = !!content && seenContents.has(content);
+
+      if (isDupByUrl || isDupByContent) {
         markReadPersist(flux);
         hideDuplicate(flux);
-      } else {
-        seen.add(key);
+        return;
       }
+
+      if (url) seenUrls.add(url);
+      if (content) seenContents.add(content);
     });
   }
 
